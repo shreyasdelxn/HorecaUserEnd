@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { INDIAN_STATES, CUSTOMER_TYPES, CUSTOMER_DEPARTMENTS, validateStatePincode } from "@/app/lib/indiaGeoData";
 
-const API_BASE = (process.env.NEXT_PUBLIC_HORECA_BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "https://horeca-backend-six.vercel.app").replace(/\/$/, "");
+const API_BASE = (process.env.NEXT_PUBLIC_HORECA_BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3000").replace(/\/$/, "");
 
 export default function RegisterPage() {
   const { registerCustomer, isAuthenticated } = useAuth();
@@ -21,6 +21,7 @@ export default function RegisterPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // Form State
   const [username, setUsername] = useState("");
@@ -85,10 +86,17 @@ export default function RegisterPage() {
     fssaiUndertakingFile?: File | null;
     fssaiDocUrl?: string | null;
     fssaiUndertakingDocUrl?: string | null;
+    hasGst: boolean;
+    gstNumber?: string;
+    gstEffectiveDate?: string;
+    gstDocFile?: File | null;
+    gstUndertakingFile?: File | null;
+    gstDocUrl?: string | null;
+    gstUndertakingDocUrl?: string | null;
   }>>([]);
 
   const addOutlet = () => {
-    setOutlets(prev => [...prev, { outletName: "", address: "", city: "", state: "", pincode: "", contactPerson: "", contactPhone: "", contactEmail: "", assignedRoute: "", routeName: "", routeCode: "", lat: null, lng: null, hasFssai: true, fssaiNumber: "", fssaiExpiryDate: "", fssaiDocFile: null, fssaiUndertakingFile: null }]);
+    setOutlets(prev => [...prev, { outletName: "", address: "", city: "", state: "", pincode: "", contactPerson: "", contactPhone: "", contactEmail: "", assignedRoute: "", routeName: "", routeCode: "", lat: null, lng: null, hasFssai: true, fssaiNumber: "", fssaiExpiryDate: "", fssaiDocFile: null, fssaiUndertakingFile: null, hasGst: true, gstNumber: "", gstEffectiveDate: "", gstDocFile: null, gstUndertakingFile: null }]);
   };
 
   const removeOutlet = (index: number) => {
@@ -218,6 +226,28 @@ export default function RegisterPage() {
     fetchTallyGroups();
   }, [API_BASE]);
 
+  // 🏪 Vendors State for Source of Customer
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [loadingVendors, setLoadingVendors] = useState(false);
+
+  React.useEffect(() => {
+    const fetchVendors = async () => {
+      setLoadingVendors(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/supplier`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          setVendors(json.data);
+        }
+      } catch (err) {
+        console.error("Failed to load vendors:", err);
+      } finally {
+        setLoadingVendors(false);
+      }
+    };
+    fetchVendors();
+  }, [API_BASE]);
+
   // 🗺️ Route Management Pincode-wise state
   const [availableRoutes, setAvailableRoutes] = useState<any[]>([]);
   const [allRoutes, setAllRoutes] = useState<any[]>([]);
@@ -231,7 +261,11 @@ export default function RegisterPage() {
   const [departmentContacts, setDepartmentContacts] = useState<Array<{ name: string; email: string; phone: string; position: string }>>([]);
 
   const addDepartmentContact = () => {
-    setDepartmentContacts(prev => [...prev, { name: "", email: "", phone: "", position: "" }]);
+    setDepartmentContacts(prev => {
+      const i = prev.length;
+      const defaultPosition = i === 0 ? "Accounts" : i === 1 ? "Purchase Manager" : i === 2 ? "Store Manager" : i === 3 ? "Accounts Payable" : `POC #${i + 1}`;
+      return [...prev, { name: "", email: "", phone: "", position: defaultPosition }];
+    });
   };
 
   const removeDepartmentContact = (index: number) => {
@@ -513,6 +547,21 @@ export default function RegisterPage() {
           if (!o.address.trim()) newErrors[`outletAddress_${i}`] = `Please enter Address for Outlet #${i + 1}`;
           if (!o.city.trim()) newErrors[`outletCity_${i}`] = `Please enter City for Outlet #${i + 1}`;
           if (!o.state) newErrors[`outletState_${i}`] = `Please select State for Outlet #${i + 1}`;
+          if (o.hasGst !== false) {
+            if (!o.gstNumber || o.gstNumber.trim().length !== 15) {
+              newErrors[`outletGstNumber_${i}`] = `Outlet #${i + 1}: Valid 15-character GST Number is required`;
+            }
+            if (!o.gstEffectiveDate) {
+              newErrors[`outletGstEffectiveDate_${i}`] = `Outlet #${i + 1}: GST Details Provided On date is required`;
+            }
+            if (!o.gstDocFile && !o.gstDocUrl) {
+              newErrors[`outletGstDoc_${i}`] = `Outlet #${i + 1}: GST Document is required`;
+            }
+          } else {
+            if (!o.gstUndertakingFile && !o.gstUndertakingDocUrl) {
+              newErrors[`outletGstUndertaking_${i}`] = `Outlet #${i + 1}: GST Undertaking / URD document is required when GST is 'No'`;
+            }
+          }
           const oPinVal = validateStatePincode(o.state, o.pincode);
           if (!oPinVal.valid) newErrors[`outletPincode_${i}`] = `Outlet #${i + 1}: ${oPinVal.message || 'Invalid PIN Code'}`;
         }
@@ -526,6 +575,10 @@ export default function RegisterPage() {
         if (!fssaiDocFile) newErrors.fssaiDocFile = "Please upload FSSAI Certificate document or photo";
       } else {
         if (!fssaiUndertakingFile) newErrors.fssaiUndertakingFile = "Please upload FSSAI Undertaking Document";
+      }
+
+      if (!agreedToTerms) {
+        newErrors.agreedToTerms = "You must confirm that the provided information is accurate and agree to the Terms and Conditions.";
       }
     }
     setErrors(newErrors);
@@ -579,6 +632,10 @@ export default function RegisterPage() {
       newErrors.confirmPassword = "Passwords do not match";
     }
 
+    if (!agreedToTerms) {
+      newErrors.agreedToTerms = "You must confirm that the provided information is accurate and agree to the Terms and Conditions.";
+    }
+
     // Run step 1 and step 2 validations to be fully complete
     if (name.trim().length < 2) newErrors.name = "Full name is required";
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -627,6 +684,21 @@ export default function RegisterPage() {
         if (!o.state) newErrors[`outletState_${i}`] = `Please select State for Outlet #${i + 1}`;
         const oPinVal = validateStatePincode(o.state, o.pincode);
         if (!oPinVal.valid) newErrors[`outletPincode_${i}`] = `Outlet #${i + 1}: ${oPinVal.message || 'Invalid PIN Code'}`;
+        if (o.hasGst !== false) {
+          if (!o.gstNumber || o.gstNumber.trim().length !== 15) {
+            newErrors[`outletGstNumber_${i}`] = `Outlet #${i + 1}: Valid 15-character GST Number is required`;
+          }
+          if (!o.gstEffectiveDate) {
+            newErrors[`outletGstEffectiveDate_${i}`] = `Outlet #${i + 1}: GST Details Provided On date is required`;
+          }
+          if (!o.gstDocFile && !o.gstDocUrl) {
+            newErrors[`outletGstDoc_${i}`] = `Outlet #${i + 1}: GST Document is required`;
+          }
+        } else {
+          if (!o.gstUndertakingFile && !o.gstUndertakingDocUrl) {
+            newErrors[`outletGstUndertaking_${i}`] = `Outlet #${i + 1}: GST Undertaking / URD document is required when GST is 'No'`;
+          }
+        }
       }
     }
 
@@ -678,13 +750,37 @@ export default function RegisterPage() {
             }
           }
 
+          let oGstDocUrl = o.gstDocUrl || null;
+          let oGstUndertakingUrl = o.gstUndertakingDocUrl || null;
+          
+          if (o.hasGst !== false && o.gstDocFile) {
+            try {
+              oGstDocUrl = await uploadDocument(o.gstDocFile);
+            } catch (gErr) {
+              console.error(`Outlet #${i + 1} GST document upload error:`, gErr);
+            }
+          }
+
+          if (o.hasGst === false && o.gstUndertakingFile) {
+            try {
+              oGstUndertakingUrl = await uploadDocument(o.gstUndertakingFile);
+            } catch (gErr) {
+              console.error(`Outlet #${i + 1} GST undertaking upload error:`, gErr);
+            }
+          }
+
           processedOutlets.push({
             ...o,
             hasFssai: o.hasFssai !== false,
             fssaiNumber: o.hasFssai !== false ? (o.fssaiNumber?.trim() || null) : null,
             fssaiExpiryDate: o.hasFssai !== false ? (o.fssaiExpiryDate || null) : null,
             fssaiDocUrl: o.hasFssai !== false ? oFssaiDocUrl : null,
-            fssaiUndertakingDocUrl: o.hasFssai === false ? oUndertakingUrl : null
+            fssaiUndertakingDocUrl: o.hasFssai === false ? oUndertakingUrl : null,
+            hasGst: o.hasGst !== false,
+            gstNumber: o.hasGst !== false ? (o.gstNumber?.trim() || null) : null,
+            gstEffectiveDate: o.hasGst !== false ? (o.gstEffectiveDate || null) : null,
+            gstDocUrl: o.hasGst !== false ? oGstDocUrl : null,
+            gstUndertakingDocUrl: o.hasGst === false ? oGstUndertakingUrl : null
           });
         }
       }
@@ -753,7 +849,7 @@ export default function RegisterPage() {
         fssaiUndertakingDocUrl: !hasFssai ? fssaiUndertakingDocUrl : null,
         licenseExpiryDate: licenseExpiryDate || null,
         hasMultipleOutlets,
-        source: customerSource === "Other" ? customSource.trim() : customerSource,
+        source: customerSource === "Other" ? customSource.trim() : (customSource.trim() && customerSource ? `${customerSource} - ${customSource.trim()}` : (customerSource || customSource.trim() || null)),
         departmentContacts: departmentContacts
           .filter(dc => dc.name.trim() || dc.email.trim() || dc.phone.trim() || dc.position.trim())
           .map(dc => ({
@@ -780,7 +876,12 @@ export default function RegisterPage() {
           fssaiNumber: o.fssaiNumber,
           fssaiExpiryDate: o.fssaiExpiryDate,
           fssaiDocUrl: o.fssaiDocUrl,
-          fssaiUndertakingDocUrl: o.fssaiUndertakingDocUrl
+          fssaiUndertakingDocUrl: o.fssaiUndertakingDocUrl,
+          hasGst: o.hasGst,
+          gstNumber: o.gstNumber,
+          gstEffectiveDate: o.gstEffectiveDate,
+          gstDocUrl: o.gstDocUrl,
+          gstUndertakingDocUrl: o.gstUndertakingDocUrl
         })) : [],
         locations: [
           {
@@ -823,7 +924,12 @@ export default function RegisterPage() {
             fssaiNumber: o.fssaiNumber,
             fssaiExpiryDate: o.fssaiExpiryDate,
             fssaiDocUrl: o.fssaiDocUrl,
-            fssaiUndertakingDocUrl: o.fssaiUndertakingDocUrl
+            fssaiUndertakingDocUrl: o.fssaiUndertakingDocUrl,
+            hasGst: o.hasGst,
+            gstNumber: o.gstNumber,
+            gstEffectiveDate: o.gstEffectiveDate,
+            gstDocUrl: o.gstDocUrl,
+            gstUndertakingDocUrl: o.gstUndertakingDocUrl
           })) : [])
         ],
         category,
@@ -1040,7 +1146,7 @@ export default function RegisterPage() {
 
                         {/* 📅 GST Details Provided On Field */}
                         <div className="flex flex-col gap-1">
-                          <label className="text-xs font-semibold text-gray-500 ml-1">GST Details Provided On *</label>
+                          <label className="text-xs font-bold text-gray-700 block ml-1">GST Details Provided On *</label>
                           <input
                             type="date"
                             value={gstEffectiveDate}
@@ -1201,36 +1307,45 @@ export default function RegisterPage() {
                     {errors.category && <p className="text-red-500 text-xs mt-1 font-medium">{errors.category}</p>}
                   </div>
 
-                  <div className="relative">
-                    <HelpCircle className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-                    <select
-                      value={customerSource}
-                      onChange={(e) => setCustomerSource(e.target.value)}
-                      className={`w-full pl-12 pr-5 py-4 border border-gray-200 rounded-2xl bg-gray-50 focus:outline-none focus:border-[#D97706] focus:ring-1 focus:ring-[#D97706] transition-all shadow-sm ${!customerSource ? 'text-gray-400' : 'text-gray-900'}`}
-                      required
-                    >
-                      <option value="" disabled>Select Source of Customer *</option>
-                      <option value="Vendor">Vendor</option>
-                      <option value="Self">Self</option>
-                      <option value="ART">ART</option>
-                      <option value="CCT">CCT</option>
-                      <option value="ODT">ODT</option>
-                      <option value="Other">Other (Specify)</option>
-                    </select>
-                  </div>
-                  {customerSource === "Other" && (
+                  <div className="space-y-4">
+                    <div className="relative">
+                      <HelpCircle className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                      <select
+                        value={customerSource}
+                        onChange={(e) => setCustomerSource(e.target.value)}
+                        className={`w-full pl-12 pr-5 py-4 border border-gray-200 rounded-2xl bg-gray-50 focus:outline-none focus:border-[#D97706] focus:ring-1 focus:ring-[#D97706] transition-all shadow-sm ${!customerSource ? 'text-gray-400' : 'text-gray-900'}`}
+                      >
+                        <option value="">Select Source of Customer (Optional)</option>
+                        <option value="Self">Self</option>
+                        <optgroup label="SCM Departments">
+                          <option value="ODT">ODT</option>
+                          <option value="ART">ART</option>
+                          <option value="CCT">CCT</option>
+                          <option value="Sales">Sales</option>
+                        </optgroup>
+                        <optgroup label="Vendors / Suppliers">
+                          {loadingVendors && <option disabled>Loading vendors...</option>}
+                          {vendors.map((vendor) => (
+                            <option key={vendor._id} value={vendor.businessName || vendor.name}>
+                              {vendor.businessName || vendor.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    
                     <div className="relative animate-in fade-in slide-in-from-top-1 duration-200">
-                      <HelpCircle className="absolute left-4 top-1/2 -translate-y-1/2 text-amber-600" size={20} />
+                      <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                       <input
                         type="text"
                         value={customSource}
                         onChange={(e) => setCustomSource(e.target.value)}
-                        placeholder="Specify Customer Source *"
-                        className="w-full pl-12 pr-5 py-4 border border-amber-300 rounded-2xl bg-amber-50/50 focus:outline-none focus:border-[#D97706] focus:ring-1 focus:ring-[#D97706] transition-all text-sm font-medium text-gray-900 shadow-sm"
-                        required
+                        placeholder={customerSource === "Other" ? "Enter Custom Source & Name" : "Name of the Referrer / Person"}
+                        className="w-full pl-12 pr-5 py-4 border border-gray-200 rounded-2xl bg-gray-50 focus:outline-none focus:border-[#D97706] focus:ring-1 focus:ring-[#D97706] transition-all text-sm font-medium text-gray-900 shadow-sm"
                       />
                     </div>
-                  )}
+                  </div>
 
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
@@ -1244,15 +1359,20 @@ export default function RegisterPage() {
                       </button>
                     </div>
                     {(departmentContacts || []).map((dc, i) => (
-                      <div key={i} className="p-4 bg-gray-50 border border-gray-200 rounded-xl relative space-y-4">
-                        <button
-                          type="button"
-                          onClick={() => removeDepartmentContact(i)}
-                          className="absolute top-4 right-4 text-rose-400 hover:text-rose-600"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                        <div className="grid grid-cols-2 gap-4 pr-8">
+                      <div key={i} className="p-4 bg-gray-50 border border-gray-200 rounded-xl relative space-y-3">
+                        <div className="flex items-center justify-between border-b border-gray-200 pb-2 mb-2">
+                          <span className="text-xs font-bold text-[#D97706]">
+                            {i === 0 ? "Accounts" : i === 1 ? "Purchase Manager" : i === 2 ? "Store Manager" : i === 3 ? "Accounts Payable" : `POC #${i + 1}`}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeDepartmentContact(i)}
+                            className="text-rose-500 hover:text-rose-700 font-bold flex items-center gap-1 text-xs"
+                          >
+                            <Trash2 size={14} /> Remove
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                           <input
                             placeholder="Name"
                             value={dc.name}
@@ -1270,12 +1390,6 @@ export default function RegisterPage() {
                             placeholder="Phone"
                             value={dc.phone}
                             onChange={(e) => updateDepartmentContact(i, 'phone', e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10 outline-none"
-                          />
-                          <input
-                            placeholder="Position"
-                            value={dc.position}
-                            onChange={(e) => updateDepartmentContact(i, 'position', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/10 outline-none"
                           />
                         </div>
@@ -1550,7 +1664,7 @@ export default function RegisterPage() {
                               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:border-[#D97706] text-xs font-medium"
                             />
                             <div>
-                              <label className="text-[10px] font-semibold text-gray-500 block mb-0.5">Outlet Logistics Route</label>
+                              <label className="text-[10px] font-bold text-gray-700 block mb-0.5">Outlet Logistics Route</label>
                               <select
                                 value={outlet.assignedRoute || ""}
                                 onChange={(e) => {
@@ -1661,6 +1775,97 @@ export default function RegisterPage() {
                                     </label>
                                   </div>
                                   {errors[`outletFssaiUndertaking_${index}`] && <p className="text-red-500 text-[10px] mt-0.5 font-medium">{errors[`outletFssaiUndertaking_${index}`]}</p>}
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Outlet GST Details Section */}
+                            <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="text-xs font-bold text-amber-900 block">Outlet GST Details *</span>
+                                </div>
+                                <div className="flex bg-white/80 p-0.5 rounded-lg border border-amber-200">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateOutlet(index, "hasGst", true)}
+                                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${outlet.hasGst !== false ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                                  >
+                                    Yes
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateOutlet(index, "hasGst", false)}
+                                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${outlet.hasGst === false ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                                  >
+                                    No
+                                  </button>
+                                </div>
+                              </div>
+
+                              {outlet.hasGst !== false ? (
+                                <div className="space-y-2 pt-1 border-t border-amber-200/60 animate-in fade-in duration-200">
+                                  <div className="grid grid-cols-2 gap-2 items-end">
+                                    <div>
+                                      <input
+                                        type="text"
+                                        value={outlet.gstNumber || ""}
+                                        onChange={(e) => updateOutlet(index, "gstNumber", e.target.value.toUpperCase())}
+                                        placeholder="15-digit GST No. *"
+                                        className="w-full px-2.5 py-2 border border-slate-200 rounded-lg bg-white text-xs font-medium"
+                                        maxLength={15}
+                                      />
+                                      {errors[`outletGstNumber_${index}`] && <p className="text-red-500 text-[10px] mt-0.5 font-medium">{errors[`outletGstNumber_${index}`]}</p>}
+                                    </div>
+                                    <div>
+                                      <label className="text-[9px] font-bold text-amber-800 block mb-0.5 leading-tight">Details Provided On *</label>
+                                      <input
+                                        type="date"
+                                        value={outlet.gstEffectiveDate || ""}
+                                        onChange={(e) => updateOutlet(index, "gstEffectiveDate", e.target.value)}
+                                        className="w-full px-2 py-1.5 border border-slate-200 rounded-lg bg-white text-xs font-medium"
+                                      />
+                                      {errors[`outletGstEffectiveDate_${index}`] && <p className="text-red-500 text-[10px] mt-0.5 font-medium">{errors[`outletGstEffectiveDate_${index}`]}</p>}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs">
+                                      <Upload size={13} className="text-slate-500" />
+                                      <span className="truncate">{outlet.gstDocFile ? outlet.gstDocFile.name : (outlet.gstDocUrl ? "✓ GST Document Uploaded" : "Upload GST Certificate *")}</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*,.pdf"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                          if (e.target.files && e.target.files[0]) {
+                                            updateOutlet(index, "gstDocFile", e.target.files[0]);
+                                          }
+                                        }}
+                                      />
+                                    </label>
+                                    {errors[`outletGstDoc_${index}`] && <p className="text-red-500 text-[10px] mt-0.5 font-medium">{errors[`outletGstDoc_${index}`]}</p>}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="space-y-2 pt-1 border-t border-amber-200/60 animate-in fade-in duration-200">
+                                  <p className="text-[10px] text-amber-800 font-medium">Upload GST Undertaking / URD Document for this outlet *</p>
+                                  <div className="flex items-center gap-2">
+                                    <label className="flex-1 px-3 py-2 bg-white border border-amber-300 rounded-lg text-xs font-bold text-amber-900 hover:bg-amber-100/50 transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs">
+                                      <Upload size={13} className="text-amber-700" />
+                                      <span className="truncate">{outlet.gstUndertakingFile ? outlet.gstUndertakingFile.name : "Upload URD Doc *"}</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*,.pdf"
+                                        className="hidden"
+                                        onChange={(e) => {
+                                          if (e.target.files && e.target.files[0]) {
+                                            updateOutlet(index, "gstUndertakingFile", e.target.files[0]);
+                                          }
+                                        }}
+                                      />
+                                    </label>
+                                  </div>
+                                  {errors[`outletGstUndertaking_${index}`] && <p className="text-red-500 text-[10px] mt-0.5 font-medium">{errors[`outletGstUndertaking_${index}`]}</p>}
                                 </div>
                               )}
                             </div>
@@ -2011,6 +2216,22 @@ export default function RegisterPage() {
                       className="w-full pl-12 pr-5 py-4 border border-gray-200 rounded-2xl bg-gray-50 focus:outline-none focus:border-[#D97706] focus:ring-1 focus:ring-[#D97706] transition-all shadow-sm"
                     />
                     {errors.confirmPassword && <p className="text-red-500 text-xs mt-1 font-medium">{errors.confirmPassword}</p>}
+                  </div>
+
+                  <div className="flex items-start gap-3 mt-4 px-1">
+                    <input
+                      type="checkbox"
+                      id="agreedToTerms"
+                      checked={agreedToTerms}
+                      onChange={(e) => setAgreedToTerms(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 text-[#D97706] border-gray-300 rounded focus:ring-[#D97706] shrink-0 cursor-pointer"
+                    />
+                    <div className="flex flex-col">
+                      <label htmlFor="agreedToTerms" className="text-xs text-gray-600 leading-relaxed cursor-pointer select-none">
+                        I confirm that the uploaded document and all other provided information are accurate and true. I agree to the <a href="#" className="text-[#D97706] hover:underline">Terms & Conditions</a>.
+                      </label>
+                      {errors.agreedToTerms && <p className="text-red-500 text-xs mt-1 font-medium">{errors.agreedToTerms}</p>}
+                    </div>
                   </div>
 
                   {errors.submit && <p className="text-red-500 text-sm font-medium">{errors.submit}</p>}
