@@ -286,6 +286,7 @@ export default function Header() {
     { name: 'Shop', path: '/products' },
     { name: 'Categories', path: '/categories' },
     ...(user?.category === 'A' ? [{ name: 'Price Requests', path: '/price-requests' }] : []),
+    ...(isAuthenticated ? [{ name: 'Product Docs', path: '/product-documents' }] : []),
     { name: 'About Us', path: '/about' },
     { name: 'Contact', path: '/contact' },
   ];

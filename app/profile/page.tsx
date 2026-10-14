@@ -42,6 +42,7 @@ import Footer from '@/components/Footer';
 import RaiseGrievanceModal from '@/components/RaiseGrievanceModal';
 import { clearOrderSession, setAuthSession } from '@/app/actions/session';
 import { getCurrentLocation } from '@/lib/utils/location';
+import ProductDocumentsSection from '@/components/documents/ProductDocumentsSection';
 
 const formatToIST = (dateString: string | Date) => {
     if (!dateString) return '';
@@ -118,6 +119,17 @@ const ProfilePage = () => {
     const [contractUploading, setContractUploading] = useState(false);
     const [savingContract, setSavingContract] = useState(false);
     const contractInputRef = React.useRef<HTMLInputElement>(null);
+
+    // Auto-select tab if provided in URL (e.g. ?tab=product_documents)
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            if (tab) {
+                setActiveTab(tab);
+            }
+        }
+    }, []);
 
     // Initialize contract form when modal opens or user profile loads
     useEffect(() => {
@@ -1246,6 +1258,7 @@ const ProfilePage = () => {
                                         { id: "personal", label: "Personal Info", icon: User },
                                         { id: "contract_details", label: "My Contract & SLA", icon: FileCheck },
                                         { id: "orders", label: "My Orders", icon: Package },
+                                        { id: "product_documents", label: "Product Documents", icon: FileText },
                                         { id: "advance_payment", label: "Advance Payment", icon: Wallet },
                                         { id: "subscriptions", label: "My Subscriptions", icon: RotateCw },
                                         { id: "addresses", label: "Addresses", icon: MapPin },
@@ -1339,7 +1352,7 @@ const ProfilePage = () => {
 
                         {/* MAIN CONTENT */}
                         <main className="flex-1 min-w-0">
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-7">
 
                                  {/* 📜 MY CONTRACT & SLA TAB */}
                                   {activeTab === "contract_details" && (
@@ -1518,6 +1531,11 @@ const ProfilePage = () => {
                                               </div>
                                           )}
                                       </div>
+                                  )}
+
+                                  {/* 📄 PRODUCT DOCUMENTS (E-FORM & COA) TAB */}
+                                  {activeTab === "product_documents" && (
+                                      <ProductDocumentsSection />
                                   )}
 
                                  {/* ADVANCE PAYMENT TAB */}

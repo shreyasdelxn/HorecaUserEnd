@@ -1,0 +1,8 @@
+// Dummy Service Worker to satisfy browser PWA/SW registration requests
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
