@@ -3,6 +3,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import ProductGrid from '@/components/products/ProductGrid';
 import FrequentlyBought from '@/components/products/FrequentlyBought';
+import CuratedPitches from '@/components/products/CuratedPitches';
 
 // Optional: Force dynamic rendering if your products change often
 export const dynamic = 'force-dynamic'; // removes automatic static optimization
@@ -65,6 +66,7 @@ export default async function ProductsPage() {
 
         <main className="flex-grow bg-gray-50">
           <div className="max-w-[1920px] mx-auto px-4 md:px-6 py-6">
+            <CuratedPitches />
             <FrequentlyBought />
           </div>
 

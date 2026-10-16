@@ -81,6 +81,11 @@ export default function ProductCard({
   // Enquiry states
   const [isEnquiryModalOpen, setIsEnquiryModalOpen] = useState(false);
   const [submittingEnquiry, setSubmittingEnquiry] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const { user, token } = useAuth();
 
@@ -453,8 +458,8 @@ export default function ProductCard({
   };
 
   const resolvePrice = () => {
-    // 1. Tier Pricing check
-    if (user?.category && effectiveProduct.categoryPrices) {
+    // 1. Tier Pricing check (only after client mounted to prevent SSR hydration mismatch)
+    if (isMounted && user?.category && effectiveProduct.categoryPrices) {
       const tierPrice = (effectiveProduct.categoryPrices as any)[user.category];
       if (tierPrice && tierPrice > 0) return tierPrice;
     }
@@ -672,7 +677,7 @@ export default function ProductCard({
         </div>
 
         {/* Request Better Price Button (Only for Tier A) */}
-        {user?.category === 'A' && !isEnquiryOnly && (
+        {isMounted && user?.category === 'A' && !isEnquiryOnly && (
           <button
             onClick={(e) => {
               e.preventDefault();
